@@ -1,13 +1,13 @@
-from security import authorize
-from tools import (
+from app.security import authorize
+from app.tools import (
     read_resource,
     write_resource,
     delete_resource,
     share_resource
 )
-from audit import log_event
-from risk import calculate_risk
-from approval import create_approval_request
+from app.audit import log_event
+from app.risk import calculate_risk
+from app.approval import create_approval_request
 
 
 def process_request(agent, action, resource):
@@ -16,21 +16,12 @@ def process_request(agent, action, resource):
     risk = calculate_risk(action, resource)
 
     # 2. Vérification des permissions
-    decision = authorize(
-        agent,
-        action,
-        resource
-    )
+    decision = authorize(agent, action, resource)
 
     # 3. Enregistrement de la tentative
-    log_event(
-        agent,
-        action,
-        resource,
-        decision
-    )
+    log_event(agent, action, resource, decision)
 
-    # 4. Action interdite
+    # 4. Refuser les actions interdites
     if decision == "DENY":
         return {
             "status": "DENIED",
@@ -40,9 +31,8 @@ def process_request(agent, action, resource):
             "risk": risk
         }
 
-    # 5. Approbation humaine nécessaire
+    # 5. Créer une demande d'approbation
     if decision == "REQUIRE_APPROVAL":
-
         request_id = create_approval_request(
             agent,
             action,
@@ -58,18 +48,18 @@ def process_request(agent, action, resource):
             "risk": risk
         }
 
-    # 6. Exécution si l'action est directement autorisée
+    # 6. Exécuter les actions autorisées
     if action == "READ":
-        result = read_resource(resource)
+        result = read_resource(resource, agent)
 
     elif action == "WRITE":
-        result = write_resource(resource)
+        result = write_resource(resource, agent)
 
     elif action == "DELETE":
-        result = delete_resource(resource)
+        result = delete_resource(resource, agent)
 
     elif action == "SHARE":
-        result = share_resource(resource)
+        result = share_resource(resource, agent)
 
     else:
         return {
@@ -77,6 +67,7 @@ def process_request(agent, action, resource):
             "reason": "Unknown action"
         }
 
+    # 7. Retourner le résultat
     return {
         "status": "ALLOWED",
         "agent": agent,
